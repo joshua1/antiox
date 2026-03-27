@@ -1,12 +1,8 @@
 import { describe, it, expect } from "vitest";
-// Import via CJS wrapper to avoid vitest thenable module trap.
-// src/stream.ts exports a function named `then`, making the module namespace
-// thenable. Vitest's module runner awaits dynamic imports, causing an infinite
-// loop. See _stream.ts for details.
 import {
 	map,
 	filter,
-	asyncMap,
+	andThen,
 	filterMap,
 	take,
 	skip,
@@ -23,7 +19,7 @@ import {
 	pipe,
 	bufferUnordered,
 	buffered,
-} from "./_stream";
+} from "../src/stream";
 import { sleep } from "../src/time";
 
 async function* fromArray<T>(items: T[]): AsyncIterable<T> {
@@ -49,7 +45,7 @@ describe("filter", () => {
 describe("then", () => {
 	it("async maps each element", async () => {
 		const result = await collect(
-			asyncMap(fromArray([1, 2, 3]), async (x) => x + 10),
+			andThen(fromArray([1, 2, 3]), async (x) => x + 10),
 		);
 		expect(result).toEqual([11, 12, 13]);
 	});

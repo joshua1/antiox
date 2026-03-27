@@ -351,6 +351,76 @@ if (result.key === "msg") {
 </details>
 
 <details>
+<summary><code>antiox/sync/once_cell</code></summary>
+
+Async lazy initialization. Compute a value once, share across tasks.
+
+```typescript
+import { OnceCell } from "antiox/sync/once_cell";
+
+const cell = new OnceCell<Config>();
+const config = await cell.getOrInit(async () => loadConfig());
+```
+
+</details>
+
+<details>
+<summary><code>antiox/sync/cancellation_token</code></summary>
+
+Tree-structured cancellation. Parent cancel propagates to all children.
+
+```typescript
+import { CancellationToken } from "antiox/sync/cancellation_token";
+
+const token = new CancellationToken();
+const child = token.child();
+
+spawn(async () => {
+  await child.cancelled();
+  console.log("cancelled!");
+});
+
+token.cancel(); // cancels token and child
+```
+
+</details>
+
+<details>
+<summary><code>antiox/sync/drop_guard</code></summary>
+
+Ensure cleanup runs on dispose.
+
+```typescript
+import { DropGuard } from "antiox/sync/drop_guard";
+
+const guard = new DropGuard(() => cleanup());
+// ... do work ...
+// guard[Symbol.dispose]() runs cleanup
+guard.disarm(); // or prevent cleanup
+```
+
+</details>
+
+<details>
+<summary><code>antiox/sync/priority_channel</code></summary>
+
+Priority queue-backed channel. Messages received in priority order.
+
+```typescript
+import { priorityChannel } from "antiox/sync/priority_channel";
+
+const [tx, rx] = priorityChannel<number>();
+tx.send(3);
+tx.send(1);
+tx.send(2);
+console.log(await rx.recv()); // 3 (highest first)
+console.log(await rx.recv()); // 2
+console.log(await rx.recv()); // 1
+```
+
+</details>
+
+<details>
 <summary><code>antiox/time</code></summary>
 
 Timer primitives with AbortSignal integration.
@@ -399,6 +469,42 @@ const processed = pipe(
 for await (const item of merge(stream1, stream2, stream3)) {
   console.log(item);
 }
+```
+
+</details>
+
+<details>
+<summary><code>antiox/collections/deque</code></summary>
+
+Double-ended queue with O(1) push/pop from both ends.
+
+```typescript
+import { Deque } from "antiox/collections/deque";
+
+const dq = new Deque<number>();
+dq.push(1);
+dq.push(2);
+dq.pushFront(0);
+console.log(dq.shift()); // 0
+console.log(dq.pop());   // 2
+```
+
+</details>
+
+<details>
+<summary><code>antiox/collections/binary_heap</code></summary>
+
+Max-heap priority queue with O(log n) push/pop.
+
+```typescript
+import { BinaryHeap } from "antiox/collections/binary_heap";
+
+const heap = new BinaryHeap<number>();
+heap.push(3);
+heap.push(1);
+heap.push(5);
+console.log(heap.pop()); // 5
+console.log(heap.pop()); // 3
 ```
 
 </details>

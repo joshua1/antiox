@@ -33,10 +33,16 @@ antiox/sync/notify      → tokio::sync::Notify
 antiox/sync/mutex       → tokio::sync::Mutex
 antiox/sync/rwlock      → tokio::sync::RwLock
 antiox/sync/barrier     → tokio::sync::Barrier
-antiox/sync/select      → tokio::select!
-antiox/task             → tokio::task
-antiox/time             → tokio::time
-antiox/stream           → tokio_stream / futures::stream
+antiox/sync/select              → tokio::select!
+antiox/sync/once_cell           → tokio::sync::OnceCell
+antiox/sync/cancellation_token  → tokio_util::sync::CancellationToken
+antiox/sync/drop_guard          → tokio_util::sync::DropGuard
+antiox/sync/priority_channel    → priority queue-backed mpsc
+antiox/task                     → tokio::task (spawn, JoinHandle, JoinSet, joinAll, tryJoinAll)
+antiox/time                     → tokio::time (sleep, timeout, timeoutAt, interval)
+antiox/stream                   → tokio_stream / futures::stream
+antiox/collections/deque        → std::collections::VecDeque
+antiox/collections/binary_heap  → std::collections::BinaryHeap
 ```
 
 Each module is a separate subpath export in `package.json` and a separate entry point in `tsup.config.ts`.
