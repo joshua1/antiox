@@ -13,14 +13,22 @@ export class OnceCell<T> {
 		return undefined;
 	}
 
-	async getOrInit(fn: () => Promise<T>): Promise<T> {
+	async getOrInit(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+		signal?.throwIfAborted();
 		if (this.#state.kind === "ready") {
 			return this.#state.value;
 		}
 
 		if (this.#state.kind === "initializing") {
 			return new Promise<T>((resolve, reject) => {
-				(this.#state as Extract<State<T>, { kind: "initializing" }>).waiters.push({ resolve, reject });
+				const waiter = { resolve, reject };
+				(this.#state as Extract<State<T>, { kind: "initializing" }>).waiters.push(waiter);
+				if (signal) {
+					const onAbort = () => reject(signal.reason);
+					signal.addEventListener("abort", onAbort, { once: true });
+					waiter.resolve = (v) => { signal.removeEventListener("abort", onAbort); resolve(v); };
+					waiter.reject = (e) => { signal.removeEventListener("abort", onAbort); reject(e); };
+				}
 			});
 		}
 

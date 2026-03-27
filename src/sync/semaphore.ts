@@ -11,6 +11,7 @@ interface Waiter {
 	n: number;
 	resolve: (permit: SemaphorePermit) => void;
 	reject: (err: AcquireError) => void;
+	aborted?: boolean;
 }
 
 export class Semaphore {
@@ -23,11 +24,12 @@ export class Semaphore {
 		this.#permits = permits;
 	}
 
-	acquire(): Promise<SemaphorePermit> {
-		return this.acquireMany(1);
+	acquire(signal?: AbortSignal): Promise<SemaphorePermit> {
+		return this.acquireMany(1, signal);
 	}
 
-	acquireMany(n: number): Promise<SemaphorePermit> {
+	acquireMany(n: number, signal?: AbortSignal): Promise<SemaphorePermit> {
+		signal?.throwIfAborted();
 		if (n < 1) throw new RangeError("Must acquire at least 1 permit");
 		if (this.#closed) return Promise.reject(new AcquireError());
 
@@ -37,7 +39,15 @@ export class Semaphore {
 		}
 
 		return new Promise<SemaphorePermit>((resolve, reject) => {
-			this.#waiters.push({ n, resolve, reject });
+			const waiter: Waiter = { n, resolve, reject };
+			this.#waiters.push(waiter);
+			if (signal) {
+				const onAbort = () => { waiter.aborted = true; reject(signal.reason); };
+				signal.addEventListener("abort", onAbort, { once: true });
+				const cleanup = () => signal.removeEventListener("abort", onAbort);
+				waiter.resolve = (p) => { cleanup(); resolve(p); };
+				waiter.reject = (e) => { cleanup(); reject(e); };
+			}
 		});
 	}
 
@@ -62,7 +72,8 @@ export class Semaphore {
 		this.#closed = true;
 		const err = new AcquireError();
 		while (!this.#waiters.isEmpty()) {
-			this.#waiters.shift()!.reject(err);
+			const w = this.#waiters.shift()!;
+			if (!w.aborted) w.reject(err);
 		}
 	}
 
@@ -78,6 +89,7 @@ export class Semaphore {
 	#drain(): void {
 		while (!this.#waiters.isEmpty()) {
 			const head = this.#waiters.shift()!;
+			if (head.aborted) continue;
 			if (this.#closed) {
 				head.reject(new AcquireError());
 				continue;

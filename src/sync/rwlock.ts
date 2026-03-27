@@ -2,10 +2,12 @@ import { Deque } from "../internal/deque";
 
 interface ReadWaiter<T> {
 	resolve: (guard: RwLockReadGuard<T>) => void;
+	aborted?: boolean;
 }
 
 interface WriteWaiter<T> {
 	resolve: (guard: RwLockWriteGuard<T>) => void;
+	aborted?: boolean;
 }
 
 // Writer-preferring: new readers wait if a writer is waiting, preventing writer starvation.
@@ -21,26 +23,44 @@ export class RwLock<T> {
 		this.#value = value;
 	}
 
-	read(): Promise<RwLockReadGuard<T>> {
+	read(signal?: AbortSignal): Promise<RwLockReadGuard<T>> {
+		signal?.throwIfAborted();
 		if (!this.#writerActive && this.#writerWaiting === 0) {
 			this.#readerCount++;
 			return Promise.resolve(new RwLockReadGuard(this));
 		}
 
-		return new Promise<RwLockReadGuard<T>>((resolve) => {
-			this.#readWaiters.push({ resolve });
+		return new Promise<RwLockReadGuard<T>>((resolve, reject) => {
+			const waiter: ReadWaiter<T> = { resolve };
+			this.#readWaiters.push(waiter);
+			if (signal) {
+				const onAbort = () => { waiter.aborted = true; reject(signal.reason); };
+				signal.addEventListener("abort", onAbort, { once: true });
+				waiter.resolve = (g) => { signal.removeEventListener("abort", onAbort); resolve(g); };
+			}
 		});
 	}
 
-	write(): Promise<RwLockWriteGuard<T>> {
+	write(signal?: AbortSignal): Promise<RwLockWriteGuard<T>> {
+		signal?.throwIfAborted();
 		if (!this.#writerActive && this.#readerCount === 0) {
 			this.#writerActive = true;
 			return Promise.resolve(new RwLockWriteGuard(this));
 		}
 
 		this.#writerWaiting++;
-		return new Promise<RwLockWriteGuard<T>>((resolve) => {
-			this.#writeWaiters.push({ resolve });
+		return new Promise<RwLockWriteGuard<T>>((resolve, reject) => {
+			const waiter: WriteWaiter<T> = { resolve };
+			this.#writeWaiters.push(waiter);
+			if (signal) {
+				const onAbort = () => {
+					waiter.aborted = true;
+					this.#writerWaiting--;
+					reject(signal.reason);
+				};
+				signal.addEventListener("abort", onAbort, { once: true });
+				waiter.resolve = (g) => { signal.removeEventListener("abort", onAbort); resolve(g); };
+			}
 		});
 	}
 
@@ -82,17 +102,19 @@ export class RwLock<T> {
 
 	// Writers preferred: wake one writer if waiting, otherwise wake all readers.
 	#wakeNext(): void {
-		if (!this.#writeWaiters.isEmpty()) {
+		while (!this.#writeWaiters.isEmpty()) {
+			const waiter = this.#writeWaiters.shift()!;
+			if (waiter.aborted) continue;
 			this.#writerWaiting--;
 			this.#writerActive = true;
-			const waiter = this.#writeWaiters.shift()!;
 			waiter.resolve(new RwLockWriteGuard(this));
 			return;
 		}
 
 		while (!this.#readWaiters.isEmpty()) {
-			this.#readerCount++;
 			const waiter = this.#readWaiters.shift()!;
+			if (waiter.aborted) continue;
+			this.#readerCount++;
 			waiter.resolve(new RwLockReadGuard(this));
 		}
 	}

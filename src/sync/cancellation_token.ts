@@ -20,13 +20,26 @@ export class CancellationToken {
 		return this.#controller.signal.aborted;
 	}
 
-	cancelled(): Promise<void> {
+	cancelled(signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
 		if (this.#controller.signal.aborted) {
 			return Promise.resolve();
 		}
 
-		return new Promise<void>((resolve) => {
-			this.#controller.signal.addEventListener("abort", () => resolve(), { once: true });
+		return new Promise<void>((resolve, reject) => {
+			const onCancel = () => {
+				if (signal) signal.removeEventListener("abort", onAbort!);
+				resolve();
+			};
+			let onAbort: (() => void) | undefined;
+			if (signal) {
+				onAbort = () => {
+					this.#controller.signal.removeEventListener("abort", onCancel);
+					reject(signal.reason);
+				};
+				signal.addEventListener("abort", onAbort, { once: true });
+			}
+			this.#controller.signal.addEventListener("abort", onCancel, { once: true });
 		});
 	}
 

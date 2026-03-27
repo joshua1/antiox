@@ -126,7 +126,8 @@ export class BroadcastReceiver<T> {
 		this.#cursor = cursor;
 	}
 
-	recv(): Promise<T> {
+	recv(signal?: AbortSignal): Promise<T> {
+		signal?.throwIfAborted();
 		if (this.#cursor < this.#state.writePos - this.#state.capacity) {
 			const missed = this.#state.writePos - this.#state.capacity - this.#cursor;
 			this.#cursor = this.#state.writePos - this.#state.capacity;
@@ -145,6 +146,7 @@ export class BroadcastReceiver<T> {
 		}
 
 		return new Promise<T>((resolve, reject) => {
+			const cursor = this.#cursor;
 			const waiter: Waiter<T> = {
 				resolve: (value: T) => {
 					this.#cursor++;
@@ -153,12 +155,27 @@ export class BroadcastReceiver<T> {
 				reject,
 			};
 
-			let set = this.#state.waiters.get(this.#cursor);
+			let set = this.#state.waiters.get(cursor);
 			if (!set) {
 				set = new Set();
-				this.#state.waiters.set(this.#cursor, set);
+				this.#state.waiters.set(cursor, set);
 			}
 			set.add(waiter);
+
+			if (signal) {
+				const onAbort = () => {
+					const s = this.#state.waiters.get(cursor);
+					if (s) {
+						s.delete(waiter);
+						if (s.size === 0) this.#state.waiters.delete(cursor);
+					}
+					reject(signal.reason);
+				};
+				signal.addEventListener("abort", onAbort, { once: true });
+				const origResolve = waiter.resolve;
+				waiter.resolve = (v) => { signal.removeEventListener("abort", onAbort); origResolve(v); };
+				waiter.reject = (e) => { signal.removeEventListener("abort", onAbort); reject(e); };
+			}
 		});
 	}
 

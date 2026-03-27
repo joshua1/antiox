@@ -14,6 +14,7 @@ export class BarrierWaitResult {
 
 interface Waiter {
 	resolve: (result: BarrierWaitResult) => void;
+	aborted?: boolean;
 }
 
 // Reusable barrier: n tasks synchronize, then the barrier resets for the next generation.
@@ -29,14 +30,16 @@ export class Barrier {
 		this.#n = n;
 	}
 
-	wait(): Promise<BarrierWaitResult> {
+	wait(signal?: AbortSignal): Promise<BarrierWaitResult> {
+		signal?.throwIfAborted();
 		this.#count++;
 
 		if (this.#count === this.#n) {
 			const result = new BarrierWaitResult(true);
 
 			while (!this.#waiters.isEmpty()) {
-				this.#waiters.shift()!.resolve(new BarrierWaitResult(false));
+				const w = this.#waiters.shift()!;
+				if (!w.aborted) w.resolve(new BarrierWaitResult(false));
 			}
 
 			this.#count = 0;
@@ -45,8 +48,20 @@ export class Barrier {
 			return Promise.resolve(result);
 		}
 
-		return new Promise<BarrierWaitResult>((resolve) => {
-			this.#waiters.push({ resolve });
+		return new Promise<BarrierWaitResult>((resolve, reject) => {
+			const waiter: Waiter = { resolve };
+			this.#waiters.push(waiter);
+			if (signal) {
+				const gen = this.#generation;
+				const onAbort = () => {
+					waiter.aborted = true;
+					// Only decrement if still in the same generation
+					if (this.#generation === gen) this.#count--;
+					reject(signal.reason);
+				};
+				signal.addEventListener("abort", onAbort, { once: true });
+				waiter.resolve = (v) => { signal.removeEventListener("abort", onAbort); resolve(v); };
+			}
 		});
 	}
 }

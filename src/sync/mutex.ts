@@ -1,6 +1,9 @@
 import { Deque } from "../internal/deque";
 
-type Waiter<T> = (guard: MutexGuard<T>) => void;
+interface Waiter<T> {
+	resolve: (guard: MutexGuard<T>) => void;
+	aborted?: boolean;
+}
 
 export class Mutex<T> {
 	#value: T;
@@ -11,14 +14,21 @@ export class Mutex<T> {
 		this.#value = value;
 	}
 
-	lock(): Promise<MutexGuard<T>> {
+	lock(signal?: AbortSignal): Promise<MutexGuard<T>> {
+		signal?.throwIfAborted();
 		if (!this.#locked) {
 			this.#locked = true;
 			return Promise.resolve(new MutexGuard(this));
 		}
 
-		return new Promise<MutexGuard<T>>((resolve) => {
-			this.#waiters.push(resolve);
+		return new Promise<MutexGuard<T>>((resolve, reject) => {
+			const waiter: Waiter<T> = { resolve };
+			this.#waiters.push(waiter);
+			if (signal) {
+				const onAbort = () => { waiter.aborted = true; reject(signal.reason); };
+				signal.addEventListener("abort", onAbort, { once: true });
+				waiter.resolve = (g) => { signal.removeEventListener("abort", onAbort); resolve(g); };
+			}
 		});
 	}
 
@@ -39,12 +49,14 @@ export class Mutex<T> {
 	}
 
 	_unlock(): void {
-		const waiter = this.#waiters.shift();
-		if (waiter !== undefined) {
-			waiter(new MutexGuard(this));
-		} else {
-			this.#locked = false;
+		while (!this.#waiters.isEmpty()) {
+			const waiter = this.#waiters.shift()!;
+			if (!waiter.aborted) {
+				waiter.resolve(new MutexGuard(this));
+				return;
+			}
 		}
+		this.#locked = false;
 	}
 
 	[Symbol.dispose](): void {

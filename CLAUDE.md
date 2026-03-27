@@ -11,6 +11,10 @@ Small utilities for Rust/Tokio-like primitives in TypeScript. Zero overhead, no 
 - Use single-line conventional commit messages. No co-authors.
 - Example: `git commit -m "feat(sync): add broadcast channel"`
 
+## Cancellation: AbortSignal vs Drop
+
+In Rust, cancellation is implicit: dropping a future cancels it. In JavaScript, promises cannot be "dropped"; they run to completion unless the underlying operation checks an `AbortSignal`. Any function in antiox that wraps or races user-provided async work must accept an optional `AbortSignal` so callers can cancel it, mirroring how Rust callers would simply drop the future.
+
 ## API Reference
 
 Before implementing or modifying any module, always look up the corresponding Tokio or Rust std docs first to verify correct type names, method signatures, and semantics:
@@ -58,7 +62,7 @@ pnpm test        # Run tests
 
 ## Documentation
 
-- Keep `README.md` up to date when adding or changing modules.
+- Keep `README.md` up to date when adding or changing modules. Code examples in README must reflect the current API signatures.
 - Keep `COMPATIBILITY.md` up to date when adding, removing, or modifying any API. Every exported function, class, and method must be tracked against its Rust equivalent. Mark new items as implemented, and document why anything is intentionally skipped.
 
 ## Code Style

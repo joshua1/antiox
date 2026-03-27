@@ -35,8 +35,13 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 	});
 }
 
-export async function timeout<T>(ms: number, promise: Promise<T>): Promise<T> {
+export async function timeout<T>(ms: number, promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+	signal?.throwIfAborted();
 	const controller = new AbortController();
+
+	if (signal) {
+		signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+	}
 
 	const timer = sleep(ms, controller.signal).then(() => {
 		throw new TimeoutError();
@@ -53,16 +58,18 @@ export async function timeout<T>(ms: number, promise: Promise<T>): Promise<T> {
 export async function timeoutAt<T>(
 	deadline: Date | number,
 	promise: Promise<T>,
+	signal?: AbortSignal,
 ): Promise<T> {
 	const ms = (typeof deadline === "number" ? deadline : deadline.getTime()) - Date.now();
-	return timeout(Math.max(ms, 0), promise);
+	return timeout(Math.max(ms, 0), promise, signal);
 }
 
-export async function* interval(ms: number): AsyncIterable<number> {
+export async function* interval(ms: number, signal?: AbortSignal): AsyncIterable<number> {
 	let tick = 0;
 	while (true) {
+		signal?.throwIfAborted();
 		if (tick > 0) {
-			await sleep(ms);
+			await sleep(ms, signal);
 		}
 		yield tick++;
 	}

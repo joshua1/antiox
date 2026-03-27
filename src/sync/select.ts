@@ -4,8 +4,13 @@ export type SelectResult<T extends Record<string, (signal: AbortSignal) => Promi
 
 export async function select<
 	T extends Record<string, (signal: AbortSignal) => Promise<any>>,
->(branches: T): Promise<SelectResult<T>> {
+>(branches: T, signal?: AbortSignal): Promise<SelectResult<T>> {
+	signal?.throwIfAborted();
 	const parentController = new AbortController();
+
+	if (signal) {
+		signal.addEventListener("abort", () => parentController.abort(signal.reason), { once: true });
+	}
 
 	const entries = Object.entries(branches) as [keyof T & string, T[keyof T & string]][];
 

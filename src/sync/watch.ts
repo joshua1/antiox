@@ -129,7 +129,8 @@ export class WatchReceiver<T> {
 		return this.#state.value;
 	}
 
-	changed(): Promise<void> {
+	changed(signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
 		if (this.#state.senderClosed) {
 			return Promise.reject(new RecvError());
 		}
@@ -140,6 +141,15 @@ export class WatchReceiver<T> {
 		return new Promise<void>((resolve, reject) => {
 			const waiter: Waiter = { resolve, reject };
 			this.#state.waiters.add(waiter);
+			if (signal) {
+				const onAbort = () => {
+					this.#state.waiters.delete(waiter);
+					reject(signal.reason);
+				};
+				signal.addEventListener("abort", onAbort, { once: true });
+				waiter.resolve = () => { signal.removeEventListener("abort", onAbort); resolve(); };
+				waiter.reject = (e) => { signal.removeEventListener("abort", onAbort); reject(e); };
+			}
 		});
 	}
 

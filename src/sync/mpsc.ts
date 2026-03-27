@@ -38,15 +38,18 @@ export class TryRecvError extends Error {
 interface SendWaiter<T> {
 	value: T;
 	resolve: () => void;
-	reject: (err: SendError<T>) => void;
+	reject: (err: Error) => void;
+	aborted?: boolean;
 }
 
 interface RecvWaiter<T> {
 	resolve: (value: T | null) => void;
+	aborted?: boolean;
 }
 
 interface ClosedWaiter {
 	resolve: () => void;
+	aborted?: boolean;
 }
 
 interface ChannelState<T> {
@@ -71,34 +74,47 @@ function createState<T>(capacity: number): ChannelState<T> {
 	};
 }
 
+function shiftLiveRecvWaiter<T>(state: ChannelState<T>): RecvWaiter<T> | undefined {
+	while (!state.recvWaiters.isEmpty()) {
+		const w = state.recvWaiters.shift()!;
+		if (!w.aborted) return w;
+	}
+	return undefined;
+}
+
 function wakeRecvWaitersWithNull<T>(state: ChannelState<T>): void {
 	while (!state.recvWaiters.isEmpty()) {
-		state.recvWaiters.shift()!.resolve(null);
+		const w = state.recvWaiters.shift()!;
+		if (!w.aborted) w.resolve(null);
 	}
 }
 
 function wakeSendWaitersWithError<T>(state: ChannelState<T>): void {
 	while (!state.sendWaiters.isEmpty()) {
 		const waiter = state.sendWaiters.shift()!;
-		waiter.reject(new SendError(waiter.value));
+		if (!waiter.aborted) waiter.reject(new SendError(waiter.value));
 	}
 }
 
 function wakeClosedWaiters<T>(state: ChannelState<T>): void {
 	while (!state.closedWaiters.isEmpty()) {
-		state.closedWaiters.shift()!.resolve();
+		const w = state.closedWaiters.shift()!;
+		if (!w.aborted) w.resolve();
 	}
 }
 
 function drainOneSendWaiter<T>(state: ChannelState<T>): void {
-	if (state.sendWaiters.isEmpty()) return;
-	const waiter = state.sendWaiters.shift()!;
-	if (state.closed) {
-		waiter.reject(new SendError(waiter.value));
+	while (!state.sendWaiters.isEmpty()) {
+		const waiter = state.sendWaiters.shift()!;
+		if (waiter.aborted) continue;
+		if (state.closed) {
+			waiter.reject(new SendError(waiter.value));
+			return;
+		}
+		state.buffer.push(waiter.value);
+		waiter.resolve();
 		return;
 	}
-	state.buffer.push(waiter.value);
-	waiter.resolve();
 }
 
 export class Sender<T> {
@@ -109,13 +125,15 @@ export class Sender<T> {
 		this.#state = state;
 	}
 
-	async send(value: T): Promise<void> {
+	async send(value: T, signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
 		const s = this.#state;
 		if (this.#dropped) throw new SendError(value);
 		if (s.closed) throw new SendError(value);
 
-		if (!s.recvWaiters.isEmpty()) {
-			s.recvWaiters.shift()!.resolve(value);
+		const w = shiftLiveRecvWaiter(s);
+		if (w) {
+			w.resolve(value);
 			return;
 		}
 
@@ -125,7 +143,15 @@ export class Sender<T> {
 		}
 
 		return new Promise<void>((resolve, reject) => {
-			s.sendWaiters.push({ value, resolve, reject });
+			const waiter: SendWaiter<T> = { value, resolve, reject };
+			s.sendWaiters.push(waiter);
+			if (signal) {
+				const onAbort = () => { waiter.aborted = true; reject(signal.reason); };
+				signal.addEventListener("abort", onAbort, { once: true });
+				const cleanup = () => signal.removeEventListener("abort", onAbort);
+				waiter.resolve = () => { cleanup(); resolve(); };
+				waiter.reject = (e) => { cleanup(); reject(e); };
+			}
 		});
 	}
 
@@ -133,8 +159,9 @@ export class Sender<T> {
 		const s = this.#state;
 		if (this.#dropped || s.closed) throw new TrySendError("closed", value);
 
-		if (!s.recvWaiters.isEmpty()) {
-			s.recvWaiters.shift()!.resolve(value);
+		const w = shiftLiveRecvWaiter(s);
+		if (w) {
+			w.resolve(value);
 			return;
 		}
 
@@ -142,11 +169,18 @@ export class Sender<T> {
 		s.buffer.push(value);
 	}
 
-	closed(): Promise<void> {
+	closed(signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
 		const s = this.#state;
 		if (s.closed) return Promise.resolve();
-		return new Promise<void>((resolve) => {
-			s.closedWaiters.push({ resolve });
+		return new Promise<void>((resolve, reject) => {
+			const waiter: ClosedWaiter = { resolve };
+			s.closedWaiters.push(waiter);
+			if (signal) {
+				const onAbort = () => { waiter.aborted = true; reject(signal.reason); };
+				signal.addEventListener("abort", onAbort, { once: true });
+				waiter.resolve = () => { signal.removeEventListener("abort", onAbort); resolve(); };
+			}
 		});
 	}
 
@@ -173,7 +207,8 @@ export class Sender<T> {
 		}
 	}
 
-	async reserve(): Promise<OwnedPermit<T>> {
+	async reserve(signal?: AbortSignal): Promise<OwnedPermit<T>> {
+		signal?.throwIfAborted();
 		const s = this.#state;
 		if (this.#dropped) throw new SendError(undefined as T);
 		if (s.closed) throw new SendError(undefined as T);
@@ -183,7 +218,15 @@ export class Sender<T> {
 		}
 
 		await new Promise<void>((resolve, reject) => {
-			s.sendWaiters.push({ value: undefined as T, resolve, reject });
+			const waiter: SendWaiter<T> = { value: undefined as T, resolve, reject };
+			s.sendWaiters.push(waiter);
+			if (signal) {
+				const onAbort = () => { waiter.aborted = true; reject(signal.reason); };
+				signal.addEventListener("abort", onAbort, { once: true });
+				const cleanup = () => signal.removeEventListener("abort", onAbort);
+				waiter.resolve = () => { cleanup(); resolve(); };
+				waiter.reject = (e) => { cleanup(); reject(e); };
+			}
 		});
 
 		return new OwnedPermit(s);
@@ -208,8 +251,9 @@ export class OwnedPermit<T> {
 
 		if (s.closed) throw new SendError(value);
 
-		if (!s.recvWaiters.isEmpty()) {
-			s.recvWaiters.shift()!.resolve(value);
+		const w = shiftLiveRecvWaiter(s);
+		if (w) {
+			w.resolve(value);
 			return;
 		}
 
@@ -229,7 +273,8 @@ export class Receiver<T> {
 		this.#state = state;
 	}
 
-	async recv(): Promise<T | null> {
+	async recv(signal?: AbortSignal): Promise<T | null> {
+		signal?.throwIfAborted();
 		const s = this.#state;
 
 		if (!s.buffer.isEmpty()) {
@@ -241,8 +286,14 @@ export class Receiver<T> {
 		if (s.senderCount === 0) return null;
 		if (this.#closed) return null;
 
-		return new Promise<T | null>((resolve) => {
-			s.recvWaiters.push({ resolve });
+		return new Promise<T | null>((resolve, reject) => {
+			const waiter: RecvWaiter<T> = { resolve };
+			s.recvWaiters.push(waiter);
+			if (signal) {
+				const onAbort = () => { waiter.aborted = true; reject(signal.reason); };
+				signal.addEventListener("abort", onAbort, { once: true });
+				waiter.resolve = (v) => { signal.removeEventListener("abort", onAbort); resolve(v); };
+			}
 		});
 	}
 
@@ -298,18 +349,26 @@ export class UnboundedSender<T> {
 		if (this.#dropped) throw new SendError(value);
 		if (this.#state.closed) throw new SendError(value);
 
-		if (!this.#state.recvWaiters.isEmpty()) {
-			this.#state.recvWaiters.shift()!.resolve(value);
+		const w = shiftLiveRecvWaiter(this.#state);
+		if (w) {
+			w.resolve(value);
 			return;
 		}
 
 		this.#state.buffer.push(value);
 	}
 
-	closed(): Promise<void> {
+	closed(signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
 		if (this.#state.closed) return Promise.resolve();
-		return new Promise<void>((resolve) => {
-			this.#state.closedWaiters.push({ resolve });
+		return new Promise<void>((resolve, reject) => {
+			const waiter: ClosedWaiter = { resolve };
+			this.#state.closedWaiters.push(waiter);
+			if (signal) {
+				const onAbort = () => { waiter.aborted = true; reject(signal.reason); };
+				signal.addEventListener("abort", onAbort, { once: true });
+				waiter.resolve = () => { signal.removeEventListener("abort", onAbort); resolve(); };
+			}
 		});
 	}
 
@@ -345,7 +404,8 @@ export class UnboundedReceiver<T> {
 		this.#state = state;
 	}
 
-	async recv(): Promise<T | null> {
+	async recv(signal?: AbortSignal): Promise<T | null> {
+		signal?.throwIfAborted();
 		const s = this.#state;
 
 		if (!s.buffer.isEmpty()) {
@@ -355,8 +415,14 @@ export class UnboundedReceiver<T> {
 		if (s.senderCount === 0) return null;
 		if (this.#closed) return null;
 
-		return new Promise<T | null>((resolve) => {
-			s.recvWaiters.push({ resolve });
+		return new Promise<T | null>((resolve, reject) => {
+			const waiter: RecvWaiter<T> = { resolve };
+			s.recvWaiters.push(waiter);
+			if (signal) {
+				const onAbort = () => { waiter.aborted = true; reject(signal.reason); };
+				signal.addEventListener("abort", onAbort, { once: true });
+				waiter.resolve = (v) => { signal.removeEventListener("abort", onAbort); resolve(v); };
+			}
 		});
 	}
 

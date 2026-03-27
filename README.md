@@ -458,9 +458,9 @@ handle.abort();
 
 // JoinSet for managing multiple tasks
 const set = new JoinSet<number>();
-set.spawn(async () => 1);
-set.spawn(async () => 2);
-set.spawn(async () => 3);
+set.spawn(async (signal) => 1);
+set.spawn(async (signal) => 2);
+set.spawn(async (signal) => 3);
 
 for await (const result of set) {
   console.log(result); // 1, 2, 3 (in completion order)
@@ -488,7 +488,9 @@ try {
   if (e instanceof TimeoutError) console.log("timed out");
 }
 
-for await (const tick of interval(1000)) {
+// All functions accept an optional AbortSignal for cancellation
+const controller = new AbortController();
+for await (const tick of interval(1000, controller.signal)) {
   console.log(`Tick ${tick}`);
   if (tick >= 4) break;
 }

@@ -73,12 +73,24 @@ export class OneshotSender<T> {
 		return this.#state.receiverClosed;
 	}
 
-	closed(): Promise<void> {
+	closed(signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
 		if (this.#state.receiverClosed) {
 			return Promise.resolve();
 		}
-		return new Promise<void>((resolve) => {
+		return new Promise<void>((resolve, reject) => {
 			this.#state.closedResolve = resolve;
+			if (signal) {
+				const onAbort = () => {
+					this.#state.closedResolve = undefined;
+					reject(signal.reason);
+				};
+				signal.addEventListener("abort", onAbort, { once: true });
+				this.#state.closedResolve = () => {
+					signal.removeEventListener("abort", onAbort);
+					resolve();
+				};
+			}
 		});
 	}
 
