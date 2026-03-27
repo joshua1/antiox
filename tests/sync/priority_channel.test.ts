@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-	priorityChannel,
-	PrioritySender,
-	PriorityReceiver,
+	channel,
+	Sender,
+	Receiver,
 	TryRecvError,
 } from "../../src/sync/priority_channel";
 
-describe("priorityChannel", () => {
+describe("channel", () => {
 	it("messages received in priority order (highest first)", async () => {
-		const [tx, rx] = priorityChannel<number>();
+		const [tx, rx] = channel<number>();
 		tx.send(1);
 		tx.send(5);
 		tx.send(3);
@@ -19,7 +19,7 @@ describe("priorityChannel", () => {
 	});
 
 	it("custom comparator (min-heap)", async () => {
-		const [tx, rx] = priorityChannel<number>((a, b) => {
+		const [tx, rx] = channel<number>((a, b) => {
 			if (a < b) return 1;
 			if (a > b) return -1;
 			return 0;
@@ -34,7 +34,7 @@ describe("priorityChannel", () => {
 	});
 
 	it("multi-producer via clone", async () => {
-		const [tx1, rx] = priorityChannel<number>();
+		const [tx1, rx] = channel<number>();
 		const tx2 = tx1.clone();
 
 		tx1.send(3);
@@ -47,7 +47,7 @@ describe("priorityChannel", () => {
 	});
 
 	it("disconnection: sender close -> recv returns null after drain", async () => {
-		const [tx, rx] = priorityChannel<number>();
+		const [tx, rx] = channel<number>();
 		tx.send(10);
 		tx.send(20);
 		tx.close();
@@ -58,7 +58,7 @@ describe("priorityChannel", () => {
 	});
 
 	it("tryRecv success and errors", () => {
-		const [tx, rx] = priorityChannel<number>();
+		const [tx, rx] = channel<number>();
 
 		expect(() => rx.tryRecv()).toThrow(TryRecvError);
 		try {
@@ -80,7 +80,7 @@ describe("priorityChannel", () => {
 	});
 
 	it("async iterator works", async () => {
-		const [tx, rx] = priorityChannel<number>();
+		const [tx, rx] = channel<number>();
 		tx.send(1);
 		tx.send(3);
 		tx.send(2);

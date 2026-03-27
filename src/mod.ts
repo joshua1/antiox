@@ -27,9 +27,9 @@ export {
 } from "./sync/mpsc";
 
 export {
-	priorityChannel,
-	PrioritySender,
-	PriorityReceiver,
+	channel as priorityChannel,
+	Sender as PrioritySender,
+	Receiver as PriorityReceiver,
 } from "./sync/priority_channel";
 export type { TrySendErrorKind, TryRecvErrorKind } from "./sync/mpsc";
 

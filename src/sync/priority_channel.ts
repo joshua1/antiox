@@ -52,20 +52,20 @@ interface PriorityChannelState<T> {
  * @param compare - Comparator function. Positive return means `a` has higher
  *   priority. Defaults to max-ordering for numbers/strings.
  */
-export function priorityChannel<T>(
+export function channel<T>(
 	compare?: (a: T, b: T) => number,
-): [PrioritySender<T>, PriorityReceiver<T>] {
+): [Sender<T>, Receiver<T>] {
 	const state: PriorityChannelState<T> = {
 		heap: new BinaryHeap(compare),
 		closed: false,
 		senderCount: 1,
 		recvWaiters: [],
 	};
-	return [new PrioritySender(state), new PriorityReceiver(state)];
+	return [new Sender(state), new Receiver(state)];
 }
 
 /** Sending half of a priority channel. */
-export class PrioritySender<T> {
+export class Sender<T> {
 	#state: PriorityChannelState<T>;
 	#dropped = false;
 
@@ -96,10 +96,10 @@ export class PrioritySender<T> {
 	}
 
 	/** Clone this sender. */
-	clone(): PrioritySender<T> {
-		if (this.#dropped) throw new Error("Cannot clone a dropped PrioritySender");
+	clone(): Sender<T> {
+		if (this.#dropped) throw new Error("Cannot clone a dropped Sender");
 		this.#state.senderCount++;
-		return new PrioritySender(this.#state);
+		return new Sender(this.#state);
 	}
 
 	/** Drop this sender. When all senders drop, receiver gets null. */
@@ -121,7 +121,7 @@ export class PrioritySender<T> {
 }
 
 /** Receiving half of a priority channel. Messages arrive in priority order. */
-export class PriorityReceiver<T> {
+export class Receiver<T> {
 	#state: PriorityChannelState<T>;
 	#closed = false;
 

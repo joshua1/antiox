@@ -14,7 +14,8 @@
 
 ## Why Antiox?
 
-- **Zero cost:** No custom DSL, no wrapper types, no extra allocations, and no dependencies. Intentionally does not implement `Result`, `Option`, or `match` — TypeScript's `T | null`, union types, and `switch` already cover these at zero cost.
+- **Async primitives:** Channels, streams, select, tasks, and more. Everything you need for structured concurrency and backpressure in TypeScript.
+- **Lightweight** No custom DSL, no wrapper types, no unnecessary allocations, and no dependencies. Intentionally does not implement `Result`, `Option`, or `match`. TypeScript's `T | null`, union types, and `switch` already cover these at zero cost.
 - **Rust-shaped:** The control flow and concurrency patterns you miss from Rust, mapped onto native JS primitives. Because let's be honest, you wish you were writing Rust instead.
 - **Lightweight:** Every module is tree-shakeable and tiny enough to ship as a transitive dependency without burdening downstream consumers.
 
@@ -406,9 +407,9 @@ guard.disarm(); // or prevent cleanup
 Priority queue-backed channel. Messages received in priority order.
 
 ```typescript
-import { priorityChannel } from "antiox/sync/priority_channel";
+import { channel } from "antiox/sync/priority_channel";
 
-const [tx, rx] = priorityChannel<number>();
+const [tx, rx] = channel<number>();
 tx.send(3);
 tx.send(1);
 tx.send(2);
