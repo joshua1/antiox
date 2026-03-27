@@ -17,12 +17,12 @@
 
 ## Why Antiox?
 
-- **Async primitives:** Channels, streams, select, tasks, and more. Everything you need for structured concurrency and backpressure in TypeScript.
-- **Lightweight** No custom DSL, no wrapper types, no unnecessary allocations, and no dependencies. Intentionally does not implement `Result`, `Option`, or `match`. TypeScript's `T | null`, union types, and `switch` already cover these at zero cost.
-- **Rust-shaped:** The control flow and concurrency patterns you miss from Rust, mapped onto native JS primitives. Because let's be honest, you wish you were writing Rust instead.
-- **Lightweight:** Every module is tree-shakeable and tiny enough to ship as a transitive dependency without burdening downstream consumers.
+- **Eliminate async concurrency bugs:** Composing `Promise.all`, `AbortController`, and `setTimeout` by hand creates exponential edge cases around cancellation, ordering, and teardown. [Tokio](https://tokio.rs) solves this in Rust with structured concurrency primitives. Antiox brings the same primitives to TypeScript.
+- **Async primitives:** Channels, streams, select, tasks, and more. Everything you need for structured concurrency and backpressure.
+- **Lightweight:** No custom DSL, no wrapper types, no unnecessary allocations, and no dependencies. Every module is tree-shakeable and tiny enough to ship as a transitive dependency.
+- **Rust-shaped:** Same structure, naming, and control flow as Tokio. LLMs know Rust/Tokio well, and this translates directly to Antiox.
 
-_And let's be honest, you probably wish you were writing Rust right now instead._
+_And let's be honest, you probably wish you were writing Rust right now instead. But the world runs on JS._
 
 ## Install
 
@@ -32,7 +32,7 @@ npm install antiox
 
 ## Overview
 
-The biggest win from antiox is **channels** and **streams** — primitives that give you structured concurrency and backpressure without callbacks, event emitters, or custom DSLs. Combine them with tasks to build powerful async systems.
+The most common pattern in antiox is pairing a **channel** with a **task** to build an actor-like system. All communication goes through channels, giving you structured concurrency, backpressure, and clean shutdown without callbacks, event emitters, or custom DSLs.
 
 ```typescript
 import { channel } from "antiox/sync/mpsc";
@@ -523,16 +523,20 @@ Rust crates that antiox doesn't cover, and what to use instead in TypeScript:
 
 ## Why not Effect?
 
-[Effect](https://effect.website) is excellent, but Antiox exists for a different niche:
+[Effect](https://effect.website) is excellent and we recommend evaluating it for comprehensive error handling and concurrency. However, Antiox exists for a different niche:
 
 - **Vanilla TypeScript syntax**: Plain `async`/`await`, `AbortSignal`, and `AsyncIterator`. No wrapper types, no effect system, no generator-based control flow.
 - **Predictable performance**: Effect memory allocations & performance impact is difficult to reason about. Antiox allows you to write vanilla TypeScript and clearly understand every memory allocation you make. This is not to say Effect is slow, but Antiox was built for performance-sensitive TypeScript (yes, that is an oxymoron).
-- **Lightweight enough to ship inside libraries**: Effect's runtime (not bundle size) is too heavy as a transitive dependency end users didn't opt into.
-- **Mirrors Rust/Tokio APIs**: Same structure, naming, and control flow. LLMs know Rust async well and this translates to Antiox perfectly.
+- **Lightweight enough to ship inside libraries**: Effect's runtime (not bundle size) is too heavy as a transitive dependency end users didn't opt into. We evaluated `effect-smol` too, but it doesn't cover the primitives we need, so we'd still need the full Effect runtime.
+- **Mirrors Rust/Tokio APIs**: Same structure, naming, and control flow. Other async primitive libraries tend to have their own learning curves and gaps in their APIs. Rust's APIs are incredibly well designed thanks to many WGs and RFCs, and LLMs know them well, which translates directly to Antiox.
 
 ## Compatibility
 
 See [COMPATIBILITY.md](COMPATIBILITY.md) for a detailed comparison of every module against its Rust/Tokio equivalent, including intentionally skipped APIs and reasons.
+
+## Name
+
+"Antiox" = "Anti Oxide," short for "antioxidant." (Rust is iron oxide.)
 
 ## License
 
