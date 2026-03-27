@@ -1,28 +1,26 @@
-<p align="center">
+<div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/media/antiox-text-light.svg" />
-    <source media="(prefers-color-scheme: light)" srcset=".github/media/antiox-text-dark.svg" />
-    <img src=".github/media/antiox-text-dark.svg" alt="antiox" />
+    <source media="(prefers-color-scheme: dark)" srcset=".github/media/antiox-text-light.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/media/antiox-text-dark.svg">
+    <img alt="Antiox: Zero-cost Rust and Tokio-like primitives for TypeScript"
+         src=".github/media/antiox-text-dark.svg"
+         width="50%">
   </picture>
-</p>
 
-<p align="center">
-  No custom DSL, no wrapper types, no extra allocations, and no dependencies.<br />
-  Just the control flow and concurrency patterns you miss from Rust, mapped onto native JS primitives.<br />
-  <i>Because let's be honest, you wish you were writing Rust instead.</i>
-</p>
-
-<p align="center">
-  <a href="https://github.com/rivet-dev/antiox">GitHub</a> — <a href="https://www.npmjs.com/package/antiox">npm</a> — <a href="https://rivet.dev/discord">Discord</a>
-</p>
+[GitHub](https://github.com/rivet-dev/antiox) | [npm](https://www.npmjs.com/package/antiox) | [Discord](https://rivet.dev/discord)
+</div>
 
 > **Pre-release:** This library is used in production but the API is subject to change.
+
+## Why Antiox?
+
+- **Zero cost:** No custom DSL, no wrapper types, no extra allocations, and no dependencies. Intentionally does not implement `Result`, `Option`, or `match` — TypeScript's `T | null`, union types, and `switch` already cover these at zero cost.
+- **Rust-shaped:** The control flow and concurrency patterns you miss from Rust, mapped onto native JS primitives. Because let's be honest, you wish you were writing Rust instead.
+- **Lightweight:** Every module is tree-shakeable and tiny enough to ship as a transitive dependency without burdening downstream consumers.
 
 ```
 npm install antiox
 ```
-
-This library intentionally does **not** implement `Result`, `Option`, or `match`. These require wrapper objects on every call, which adds allocation overhead that defeats the purpose. TypeScript's `T | null`, union types, and `switch` already cover these patterns at zero cost.
 
 ## Overview
 
