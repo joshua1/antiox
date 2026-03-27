@@ -10,7 +10,7 @@
 [GitHub](https://github.com/rivet-dev/antiox) | [npm](https://www.npmjs.com/package/antiox) | [Discord](https://rivet.dev/discord)
 </div>
 
-> **Pre-release:** This library is used in production but the API is subject to change.
+**Pre-release:** This library is used in production but the API is subject to change.
 
 ## Why Antiox?
 
@@ -18,13 +18,15 @@
 - **Rust-shaped:** The control flow and concurrency patterns you miss from Rust, mapped onto native JS primitives. Because let's be honest, you wish you were writing Rust instead.
 - **Lightweight:** Every module is tree-shakeable and tiny enough to ship as a transitive dependency without burdening downstream consumers.
 
+## Install
+
 ```
 npm install antiox
 ```
 
 ## Overview
 
-The biggest win from antiox is **channels** and **streams** — primitives that give you structured concurrency and backpressure without callbacks, event emitters, or custom DSLs. Combine them with tasks to build actor-like patterns:
+The biggest win from antiox is **channels** and **streams** — primitives that give you structured concurrency and backpressure without callbacks, event emitters, or custom DSLs. Combine them with tasks to build powerful async systems.
 
 ```typescript
 import { channel } from "antiox/sync/mpsc";
@@ -37,7 +39,6 @@ type Msg =
 
 const [tx, rx] = channel<Msg>(32);
 
-// Actor loop
 spawn(async () => {
   let count = 0;
   for await (const msg of rx) {
@@ -513,7 +514,7 @@ Rust crates that antiox doesn't cover, and what to use instead in TypeScript:
 
 | Rust | TypeScript Replacement | Why |
 |------|----------------------|-----|
-| `Result` / `Option` | [better-result](https://github.com/user/better-result) | Typed Result/Option without wrapper overhead |
+| `Result` / `Option` | [better-result](https://github.com/dmmulroy/better-result) | Typed Result/Option without wrapper overhead |
 | `tracing` | [pino](https://github.com/pinojs/pino) | Structured logging, zero-overhead when disabled |
 | `serde` | [zod](https://github.com/colinhacks/zod) | Schema validation and parsing |
 | `reqwest` | Native `fetch` | Built into the runtime |
@@ -532,9 +533,9 @@ Rust crates that antiox doesn't cover, and what to use instead in TypeScript:
 
 [Effect](https://effect.website) is excellent, but antiox exists for a different niche:
 
-- **Lightweight enough to ship inside libraries.** Effect's runtime is too heavy as a transitive dependency end users didn't opt into.
-- **Mirrors Rust/Tokio APIs.** Same structure, naming, and control flow across both codebases — the TypeScript reads like the Rust it was ported from.
-- **No new DSL.** Plain `async`/`await`, `AbortSignal`, and `AsyncIterator`. No wrapper types, no effect system, no generator-based control flow.
+- **Lightweight enough to ship inside libraries**: Effect's runtime is too heavy as a transitive dependency end users didn't opt into.
+- **Mirrors Rust/Tokio APIs**: Same structure, naming, and control flow across both codebases — the TypeScript reads like the Rust it was ported from.
+- **No new DSL**: Plain `async`/`await`, `AbortSignal`, and `AsyncIterator`. No wrapper types, no effect system, no generator-based control flow.
 
 ## License
 
