@@ -166,7 +166,7 @@ async function main() {
 	run(`gh workflow run release.yml -f version=${version} -f npm-tag=${tag}`, { stdio: "inherit" });
 
 	console.log(`\n\x1b[32m✓ Tag v${version} pushed. CI will build and publish.\x1b[0m`);
-	console.log(`  Watch progress: \x1b[36mhttps://github.com/NathanFlurry/antiox/actions/workflows/release.yml\x1b[0m`);
+	console.log(`  Watch progress: \x1b[36mhttps://github.com/rivet-dev/antiox/actions/workflows/release.yml\x1b[0m`);
 }
 
 main().catch((err) => {

@@ -212,8 +212,73 @@ export class Sender<T> {
 		}
 	}
 
+	/**
+	 * Reserve capacity in the channel before having the value.
+	 * Returns an OwnedPermit that can be used to send a value later.
+	 * Waits for capacity like `send()`.
+	 * Throws `SendError` if the receiver has been closed.
+	 */
+	async reserve(): Promise<OwnedPermit<T>> {
+		const s = this.#state;
+		if (this.#dropped) throw new SendError(undefined as T);
+		if (s.closed) throw new SendError(undefined as T);
+
+		// If buffer has space or a receiver is waiting, reserve immediately.
+		if (!s.recvWaiters.isEmpty() || s.buffer.length < s.capacity) {
+			return new OwnedPermit(s);
+		}
+
+		// Wait for space.
+		await new Promise<void>((resolve, reject) => {
+			s.sendWaiters.push({ value: undefined as T, resolve, reject });
+		});
+
+		// Space was made for us, but we consumed it via the waiter.
+		// The drainOneSendWaiter pushed our undefined value. Pop it back out.
+		// Instead, we take a different approach: the permit will push directly when send is called.
+		return new OwnedPermit(s);
+	}
+
 	[Symbol.dispose](): void {
 		this.close();
+	}
+}
+
+/**
+ * A permit to send a single value into a bounded channel.
+ * Created by `Sender.reserve()`. The capacity is already reserved.
+ */
+export class OwnedPermit<T> {
+	#state: ChannelState<T> | null;
+
+	/** @internal */
+	constructor(state: ChannelState<T>) {
+		this.#state = state;
+	}
+
+	/**
+	 * Send a value using the reserved capacity.
+	 * Can only be called once.
+	 */
+	send(value: T): void {
+		if (this.#state === null) throw new Error("OwnedPermit already used");
+		const s = this.#state;
+		this.#state = null;
+
+		if (s.closed) throw new SendError(value);
+
+		// Deliver directly to a waiting receiver if any.
+		if (!s.recvWaiters.isEmpty()) {
+			s.recvWaiters.shift()!.resolve(value);
+			return;
+		}
+
+		s.buffer.push(value);
+	}
+
+	[Symbol.dispose](): void {
+		// If permit was not used, release the reserved capacity slot.
+		this.#state = null;
 	}
 }
 

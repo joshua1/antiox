@@ -89,6 +89,27 @@ export class WatchSender<T> {
 		this.#state.waiters.clear();
 	}
 
+	/**
+	 * Update the value only if the predicate returns true.
+	 * Avoids waking receivers for no-op changes.
+	 *
+	 * The predicate receives a mutable reference to the current value.
+	 * If it returns true, receivers are notified. If false, nothing happens.
+	 */
+	sendIfModified(modify: (current: T) => boolean): boolean {
+		if (this.#closed) return false;
+		if (this.#state.receiverCount === 0) return false;
+
+		if (!modify(this.#state.value)) return false;
+
+		this.#state.version++;
+		for (const waiter of this.#state.waiters) {
+			waiter.resolve();
+		}
+		this.#state.waiters.clear();
+		return true;
+	}
+
 	/** Read the current value without marking it as seen. */
 	borrow(): T {
 		return this.#state.value;

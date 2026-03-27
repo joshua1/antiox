@@ -259,3 +259,63 @@ export function spawn<T>(
 export function yieldNow(): Promise<void> {
 	return new Promise<void>((resolve) => setTimeout(resolve, 0));
 }
+
+// ============================================================================
+// joinAll / tryJoinAll
+// ============================================================================
+
+/**
+ * Wait for all tasks to complete. Returns results in the same order as input.
+ * If any task fails, the error is collected but all tasks are awaited.
+ * Mirrors `futures::future::join_all`.
+ */
+export async function joinAll<T>(
+	handles: JoinHandle<T>[],
+): Promise<T[]> {
+	const results = await Promise.allSettled(handles.map((h) => h.then((v) => v)));
+	return results.map((r) => {
+		if (r.status === "fulfilled") return r.value;
+		throw r.reason;
+	});
+}
+
+/**
+ * Wait for all tasks to complete, cancelling remaining on first failure.
+ * Returns results in the same order as input.
+ * Mirrors `futures::future::try_join_all`.
+ *
+ * On first rejection, all other handles are aborted and the error is thrown.
+ */
+export async function tryJoinAll<T>(
+	handles: JoinHandle<T>[],
+): Promise<T[]> {
+	const results: T[] = new Array(handles.length);
+	let firstError: unknown = undefined;
+	let hasError = false;
+
+	const wrapped = handles.map((handle, i) =>
+		handle.then(
+			(value) => {
+				results[i] = value;
+			},
+			(err) => {
+				if (!hasError) {
+					hasError = true;
+					firstError = err;
+					// Abort all other handles
+					for (const h of handles) {
+						h.abort();
+					}
+				}
+			},
+		),
+	);
+
+	await Promise.all(wrapped);
+
+	if (hasError) {
+		throw firstError;
+	}
+
+	return results;
+}

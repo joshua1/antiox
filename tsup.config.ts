@@ -22,4 +22,5 @@ export default defineConfig({
 	dts: true,
 	clean: true,
 	splitting: true,
+	minify: true,
 });

@@ -7,7 +7,7 @@
 <h3 align="center">Zero-Cost Rust and Tokio-like primitives for TypeScript (Anti Oxide)</h3>
 
 <p align="center">
-  No custom DSL, no wrapper types, no extra allocations.<br />
+  No custom DSL, no wrapper types, no extra allocations, and no dependencies.<br />
   Just the control flow and concurrency patterns you miss from Rust, mapped onto native JS primitives.<br />
   <i>Because let's be honest, you wish you were writing Rust instead.</i>
 </p>
@@ -16,23 +16,26 @@
   <a href="https://github.com/rivet-dev/antiox">GitHub</a> — <a href="https://www.npmjs.com/package/antiox">npm</a>
 </p>
 
+> **Pre-release:** This library is used in production but the API is subject to change.
+
 ```
 npm install antiox
 ```
 
 This library intentionally does **not** implement `Result`, `Option`, or `match`. These require wrapper objects on every call, which adds allocation overhead that defeats the purpose. TypeScript's `T | null`, union types, and `switch` already cover these patterns at zero cost.
 
-## The Actor Model with Channels + Tasks
+## Overview
 
-Channels and tasks are the building blocks for implementing actors in TypeScript. Spawn a task as the actor's event loop, give it an mpsc receiver, and send messages to it through the sender:
+The biggest win from antiox is **channels** and **streams** — primitives that give you structured concurrency and backpressure without callbacks, event emitters, or custom DSLs. Combine them with tasks to build actor-like patterns:
 
 ```typescript
 import { channel } from "antiox/sync/mpsc";
+import { oneshot, OneshotSender } from "antiox/sync/oneshot";
 import { spawn } from "antiox/task";
 
 type Msg =
   | { type: "increment"; amount: number }
-  | { type: "get"; resolve: (value: number) => void };
+  | { type: "get"; resTx: OneshotSender<number> };
 
 const [tx, rx] = channel<Msg>(32);
 
@@ -45,41 +48,41 @@ spawn(async () => {
         count += msg.amount;
         break;
       case "get":
-        msg.resolve(count);
+        msg.resTx.send(count);
         break;
     }
   }
 });
 
-// Send fire-and-forget messages
+// Fire-and-forget
 await tx.send({ type: "increment", amount: 5 });
 
-// Request-response using a promise as a oneshot channel
-const value = await new Promise<number>((resolve) =>
-  tx.send({ type: "get", resolve })
-);
+// Request-response via oneshot channel
+const [resTx, resRx] = oneshot<number>();
+await tx.send({ type: "get", resTx });
+const value = await resRx;
 ```
 
-This pattern gives you serialized access to mutable state without locks, backpressure via bounded channels, and clean shutdown via channel disconnection. The request-response variant embeds a Promise resolve function in the message as a lightweight oneshot channel, so callers can `await` a reply from the actor.
+Bounded channels give you backpressure, `for await` gives you clean shutdown on disconnect, and oneshot channels give you typed request-response — all without locks or shared mutable state.
 
 ## Modules
 
-| Module | Mirrors | Docs |
-|--------|---------|------|
-| [`antiox/panic`](#antioxpanic) | `std::panic!`, `std::todo!`, `std::unreachable!` | [std](https://doc.rust-lang.org/std/) |
-| [`antiox/sync/mpsc`](#antioxsyncmpsc) | `tokio::sync::mpsc` | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/mpsc/) |
-| [`antiox/sync/oneshot`](#antioxsynconeshot) | `tokio::sync::oneshot` | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/oneshot/) |
-| [`antiox/sync/watch`](#antioxsyncwatch) | `tokio::sync::watch` | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/watch/) |
-| [`antiox/sync/broadcast`](#antioxsyncbroadcast) | `tokio::sync::broadcast` | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/broadcast/) |
-| [`antiox/sync/semaphore`](#antioxsyncsemaphore) | `tokio::sync::Semaphore` | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.Semaphore.html) |
-| [`antiox/sync/notify`](#antioxsyncnotify) | `tokio::sync::Notify` | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.Notify.html) |
-| [`antiox/sync/mutex`](#antioxsyncmutex) | `tokio::sync::Mutex` | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.Mutex.html) |
-| [`antiox/sync/rwlock`](#antioxsyncrwlock) | `tokio::sync::RwLock` | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.RwLock.html) |
-| [`antiox/sync/barrier`](#antioxsyncbarrier) | `tokio::sync::Barrier` | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.Barrier.html) |
-| [`antiox/sync/select`](#antioxsyncselect) | `tokio::select!` | [docs.rs](https://docs.rs/tokio/latest/tokio/macro.select.html) |
-| [`antiox/task`](#antioxtask) | `tokio::task` | [docs.rs](https://docs.rs/tokio/latest/tokio/task/) |
-| [`antiox/time`](#antioxtime) | `tokio::time` | [docs.rs](https://docs.rs/tokio/latest/tokio/time/) |
-| [`antiox/stream`](#antioxstream) | `tokio_stream` / `futures::stream` | [docs.rs](https://docs.rs/tokio-stream/latest/tokio_stream/) |
+| Module | Mirrors | Min | Gzip | Docs |
+|--------|---------|-----|------|------|
+| [`antiox/panic`](#antioxpanic) | `std::panic!`, `std::todo!`, `std::unreachable!` | 273 B | 199 B | [std](https://doc.rust-lang.org/std/) |
+| [`antiox/sync/mpsc`](#antioxsyncmpsc) | `tokio::sync::mpsc` | 4.6 KB | 1.3 KB | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/mpsc/) |
+| [`antiox/sync/oneshot`](#antioxsynconeshot) | `tokio::sync::oneshot` | 1.7 KB | 625 B | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/oneshot/) |
+| [`antiox/sync/watch`](#antioxsyncwatch) | `tokio::sync::watch` | 1.5 KB | 635 B | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/watch/) |
+| [`antiox/sync/broadcast`](#antioxsyncbroadcast) | `tokio::sync::broadcast` | 2.4 KB | 936 B | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/broadcast/) |
+| [`antiox/sync/semaphore`](#antioxsyncsemaphore) | `tokio::sync::Semaphore` | 2.0 KB | 845 B | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.Semaphore.html) |
+| [`antiox/sync/notify`](#antioxsyncnotify) | `tokio::sync::Notify` | 934 B | 466 B | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.Notify.html) |
+| [`antiox/sync/mutex`](#antioxsyncmutex) | `tokio::sync::Mutex` | 1.4 KB | 606 B | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.Mutex.html) |
+| [`antiox/sync/rwlock`](#antioxsyncrwlock) | `tokio::sync::RwLock` | 2.2 KB | 778 B | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.RwLock.html) |
+| [`antiox/sync/barrier`](#antioxsyncbarrier) | `tokio::sync::Barrier` | 1.1 KB | 528 B | [docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.Barrier.html) |
+| [`antiox/sync/select`](#antioxsyncselect) | `tokio::select!` | 338 B | 260 B | [docs.rs](https://docs.rs/tokio/latest/tokio/macro.select.html) |
+| [`antiox/task`](#antioxtask) | `tokio::task` | 1.7 KB | 795 B | [docs.rs](https://docs.rs/tokio/latest/tokio/task/) |
+| [`antiox/time`](#antioxtime) | `tokio::time` | 807 B | 469 B | [docs.rs](https://docs.rs/tokio/latest/tokio/time/) |
+| [`antiox/stream`](#antioxstream) | `tokio_stream` / `futures::stream` | 9.7 KB | 2.9 KB | [docs.rs](https://docs.rs/tokio-stream/latest/tokio_stream/) |
 
 ---
 
@@ -350,12 +353,13 @@ for await (const item of merge(stream1, stream2, stream3)) {
 }
 ```
 
-## Related Libraries
+## Filling the Gaps
 
-Rust equivalents that antiox does not cover, with recommended JS alternatives:
+Rust crates that antiox doesn't cover, and what to use instead in TypeScript:
 
-| Rust | JS Replacement | Why |
-|------|---------------|-----|
+| Rust | TypeScript Replacement | Why |
+|------|----------------------|-----|
+| `Result` / `Option` | [better-result](https://github.com/user/better-result) | Typed Result/Option without wrapper overhead |
 | `tracing` | [pino](https://github.com/pinojs/pino) | Structured logging, zero-overhead when disabled |
 | `serde` | [zod](https://github.com/colinhacks/zod) | Schema validation and parsing |
 | `reqwest` | Native `fetch` | Built into the runtime |
@@ -365,19 +369,18 @@ Rust equivalents that antiox does not cover, with recommended JS alternatives:
 
 - [RivetKit](https://github.com/rivet-dev/rivet)
 
+## Wish List
+
+- `tokio-console`-like observability
+- `pino` integration
+
 ## Why not Effect?
 
-[Effect](https://effect.website) is an excellent library. It describes itself as "the missing standard library for TypeScript," and that's a fair claim. It provides typed error handling, fiber-based concurrency, streams, resource safety, dependency injection, and much more. If you're building an application in TypeScript and want Rust-level rigor, Effect is worth serious consideration.
+[Effect](https://effect.website) is excellent, but antiox exists for a different niche:
 
-That said, antiox exists because of a narrow use case where Effect isn't the right fit:
-
-**This library is shipped as a dependency inside other libraries.** Effect's core runtime starts at ~25 KB gzipped (or ~6 KB in v4 beta), which is reasonable for an application but heavy for a transitive dependency that end users didn't opt into. Effect's `Micro` module (~5 KB) was designed for exactly this library-embedding scenario, but it excludes the concurrency primitives we need here (Queue, Semaphore, and other fiber coordination tools are only available in the full runtime).
-
-**We mirror code between Rust and TypeScript.** Several of our internal systems have near-identical implementations in both languages. Keeping the same structure, naming, and control flow patterns (channels, JoinSet, spawn) across both codebases reduces cognitive overhead when switching between them. antiox maps Rust/Tokio primitives onto native JS constructs with minimal abstraction, so the TypeScript reads like the Rust it was ported from.
-
-**No new DSL to learn.** antiox uses plain `async`/`await`, `AbortSignal`, and `AsyncIterator`. There are no wrapper types, no custom effect system, and no generator-based control flow. If you know Rust's concurrency model and TypeScript's async primitives, you already know how to use this library.
-
-Effect is the right choice for most TypeScript projects that need these capabilities. antiox is for the specific case where you need lightweight Rust-shaped concurrency primitives that can ship inside a library without burdening downstream consumers.
+- **Lightweight enough to ship inside libraries.** Effect's runtime is too heavy as a transitive dependency end users didn't opt into.
+- **Mirrors Rust/Tokio APIs.** Same structure, naming, and control flow across both codebases — the TypeScript reads like the Rust it was ported from.
+- **No new DSL.** Plain `async`/`await`, `AbortSignal`, and `AsyncIterator`. No wrapper types, no effect system, no generator-based control flow.
 
 ## License
 
