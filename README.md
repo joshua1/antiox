@@ -6,8 +6,11 @@
          src=".github/media/antiox-text-dark.svg"
          width="50%">
   </picture>
-
-[NPM](https://www.npmjs.com/package/antiox) | [Documentation](#documentation) | [Discord](https://rivet.dev/discord)
+<p>
+  <br/>
+<a href="https://www.npmjs.com/package/antiox">NPM</a> | <a href="#documentation">Documentation</a> | <a href="https://rivet.dev/discord">Discord</a>
+</p>
+<br/>
 </div>
 
 **Pre-release:** This library is used in production but the API is subject to change.
