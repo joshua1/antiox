@@ -7,7 +7,7 @@
          width="50%">
   </picture>
 
-[GitHub](https://github.com/rivet-dev/antiox) | [npm](https://www.npmjs.com/package/antiox) | [Discord](https://rivet.dev/discord)
+[NPM](https://www.npmjs.com/package/antiox) | [Discord](https://rivet.dev/discord)
 </div>
 
 **Pre-release:** This library is used in production but the API is subject to change.
