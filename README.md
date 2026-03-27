@@ -509,8 +509,6 @@ Rust crates that antiox doesn't cover, and what to use instead in TypeScript:
 | `Result` / `Option` | [better-result](https://github.com/dmmulroy/better-result) | Typed Result/Option without wrapper overhead |
 | `tracing` | [pino](https://github.com/pinojs/pino) | Structured logging, zero-overhead when disabled |
 | `serde` | [zod](https://github.com/colinhacks/zod) | Schema validation and parsing |
-| `reqwest` | Native `fetch` | Built into the runtime |
-| `anyhow` / `thiserror` | Native `Error` + `cause` | TS union types + `instanceof` |
 
 ## Who's using this?
 
