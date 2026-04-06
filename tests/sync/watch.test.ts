@@ -105,6 +105,13 @@ describe("watch", () => {
 		expect(tx.isClosed()).toBe(true);
 	});
 
+	it("isClosed is true after sender close", () => {
+		const [tx, rx] = watch(0);
+		tx.close();
+		expect(tx.isClosed()).toBe(true);
+		void rx;
+	});
+
 	it("sendIfModified returns true and wakes receivers when predicate returns true", async () => {
 		const [tx, rx] = watch({ count: 0 });
 		rx.borrowAndUpdate();

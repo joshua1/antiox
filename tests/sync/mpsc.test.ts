@@ -145,6 +145,13 @@ describe("bounded channel", () => {
 		expect(tx.isClosed()).toBe(true);
 	});
 
+	it("isClosed is true after sender close", () => {
+		const [tx, rx] = channel<number>(8);
+		tx.close();
+		expect(tx.isClosed()).toBe(true);
+		void rx;
+	});
+
 	it("closed() resolves when receiver closes", async () => {
 		const [tx, rx] = channel<number>(8);
 		let resolved = false;
@@ -510,6 +517,13 @@ describe("unbounded channel", () => {
 		expect(tx.isClosed()).toBe(false);
 		rx.close();
 		expect(tx.isClosed()).toBe(true);
+	});
+
+	it("isClosed is true after sender close", () => {
+		const [tx, rx] = unboundedChannel<number>();
+		tx.close();
+		expect(tx.isClosed()).toBe(true);
+		void rx;
 	});
 
 	it("closed() resolves when receiver closes", async () => {

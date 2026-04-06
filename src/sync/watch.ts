@@ -89,7 +89,7 @@ export class WatchSender<T> {
 	}
 
 	isClosed(): boolean {
-		return this.#state.receiverCount === 0;
+		return this.#closed || this.#state.receiverCount === 0;
 	}
 
 	close(): void {

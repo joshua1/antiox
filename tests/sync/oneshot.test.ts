@@ -205,6 +205,13 @@ describe("oneshot", () => {
 		expect(tx.isClosed()).toBe(true);
 	});
 
+	it("isClosed is true after sender close", () => {
+		const [tx, rx] = oneshot<number>();
+		tx[Symbol.dispose]();
+		expect(tx.isClosed()).toBe(true);
+		void rx;
+	});
+
 	it("isClosed is false after send (sender closed but receiver is not)", () => {
 		const [tx, rx] = oneshot<number>();
 		tx.send(1);

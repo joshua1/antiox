@@ -185,7 +185,7 @@ export class Sender<T> {
 	}
 
 	isClosed(): boolean {
-		return this.#state.closed;
+		return this.#dropped || this.#state.closed;
 	}
 
 	capacity(): number {
@@ -373,7 +373,7 @@ export class UnboundedSender<T> {
 	}
 
 	isClosed(): boolean {
-		return this.#state.closed;
+		return this.#dropped || this.#state.closed;
 	}
 
 	clone(): UnboundedSender<T> {

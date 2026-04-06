@@ -70,7 +70,7 @@ export class OneshotSender<T> {
 	}
 
 	isClosed(): boolean {
-		return this.#state.receiverClosed;
+		return this.#dropped || this.#state.receiverClosed;
 	}
 
 	closed(signal?: AbortSignal): Promise<void> {
